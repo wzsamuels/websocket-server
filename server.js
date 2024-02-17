@@ -1,7 +1,7 @@
 const WebSocket = require('ws');
 const net = require('net');
 
-const wss = new WebSocket.Server({ port: 8080 });
+const wss = new WebSocket.Server({ port: 80 });
 
 wss.on('connection', (ws) => {
   const mudClient = new net.Socket();
@@ -9,7 +9,7 @@ wss.on('connection', (ws) => {
     console.log('Connected to MUD server');
   });
 
-  mudClient.setKeepAlive(true); //1 min = 60000 milliseconds.
+  mudClient.setKeepAlive(true, 60000);
 
   mudClient.on('data', (data) => {
     ws.send(data.toString());
