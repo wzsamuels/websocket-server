@@ -1,12 +1,12 @@
 const WebSocket = require('ws');
 const net = require('net');
 
-const wss = new WebSocket.Server({ port: process.env.PORT || 80 });
-console.log("Port: ", process.env.port || 80)
+const PORT = process.env.PORT || 8080
+const wss = new WebSocket.Server({ port: PORT});
 
+console.log("Server running on port ", PORT)
 wss.on('connection', (ws) => {
   const mudClient = new net.Socket();
-  mudClient.
   mudClient.connect(4000, 'ifmud.port4000.com', () => {
     console.log('Connected to MUD server');
   });
