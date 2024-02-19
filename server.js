@@ -1,10 +1,23 @@
 const WebSocket = require('ws');
 const net = require('net');
+const https = require('https');
+const fs = require('fs');
 
-const PORT = process.env.PORT || 8080
-const wss = new WebSocket.Server({ port: PORT});
+const PORT = process.env.PORT || 8080;
 
-console.log("Server running on port ", PORT)
+// Load SSL/TLS certificates
+const serverOptions = {
+  key: fs.readFileSync('/etc/letsencrypt/live/zach-samuels.com/privkey.pem'),
+  cert: fs.readFileSync('/etc/letsencrypt/live/zach-samuels.com/fullchain.pem')
+};
+
+// Create an HTTPS server
+const httpsServer = https.createServer(serverOptions);
+httpsServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+// Pass the HTTPS server to the WebSocket.Server constructor
+const wss = new WebSocket.Server({ server: httpsServer });
+
 wss.on('connection', (ws) => {
   const mudClient = new net.Socket();
   mudClient.connect(4000, 'ifmud.port4000.com', () => {
