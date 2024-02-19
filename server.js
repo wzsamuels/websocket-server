@@ -7,8 +7,8 @@ const PORT = process.env.PORT || 8080;
 
 // Load SSL/TLS certificates
 const serverOptions = {
-  key: fs.readFileSync('/etc/letsencrypt/live/zach-samuels.com/privkey.pem'),
-  cert: fs.readFileSync('/etc/letsencrypt/live/zach-samuels.com/fullchain.pem')
+  key: fs.readFileSync('/home/ubuntu/websocket-server/privkey.pem'),
+  cert: fs.readFileSync('/home/ubuntu/websocket-server/fullchain.pem')
 };
 
 // Create an HTTPS server
@@ -18,10 +18,11 @@ httpsServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 // Pass the HTTPS server to the WebSocket.Server constructor
 const wss = new WebSocket.Server({ server: httpsServer });
 
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
+  const ip = req.socket.remoteAddress;
   const mudClient = new net.Socket();
   mudClient.connect(4000, 'ifmud.port4000.com', () => {
-    console.log('Connected to MUD server');
+    console.log('Connected to MUD server from ', ip);
   });
 
   mudClient.setKeepAlive(true, 60000);
@@ -44,6 +45,7 @@ wss.on('connection', (ws) => {
     }
   });
   
+  ws.on('error', console.error);
 
   ws.on('close', () => {
     mudClient.end();
