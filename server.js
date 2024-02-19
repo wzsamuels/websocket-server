@@ -1,54 +1,66 @@
 const WebSocket = require('ws');
 const net = require('net');
-const https = require('https');
 const fs = require('fs');
 
 const PORT = process.env.PORT || 8080;
+const wss = new WebSocket.Server({ port: PORT });
 
-// Load SSL/TLS certificates
-const serverOptions = {
-  key: fs.readFileSync('/home/ubuntu/websocket-server/privkey.pem'),
-  cert: fs.readFileSync('/home/ubuntu/websocket-server/fullchain.pem')
-};
+console.log("WebSocket Server running on port", PORT);
 
-// Create an HTTPS server
-const httpsServer = https.createServer(serverOptions);
-httpsServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+wss.on('connection', (ws) => {
+  console.log('New client connected to WebSocket Server.');
 
-// Pass the HTTPS server to the WebSocket.Server constructor
-const wss = new WebSocket.Server({ server: httpsServer });
-
-wss.on('connection', (ws, req) => {
-  const ip = req.socket.remoteAddress;
   const mudClient = new net.Socket();
   mudClient.connect(4000, 'ifmud.port4000.com', () => {
-    console.log('Connected to MUD server from ', ip);
+    console.log('Connected to MUD server');
   });
 
   mudClient.setKeepAlive(true, 60000);
 
   mudClient.on('data', (data) => {
-    ws.send(data.toString());
+    console.log(`Received data from MUD server: ${data.length} bytes`);
+    ws.send(data.toString(), (error) => {
+      if (error) {
+        console.log('Error sending data to WebSocket client:', error);
+      }
+    });
+  });
+
+  mudClient.on('error', (error) => {
+    console.log('Error with MUD server connection:', error);
   });
 
   ws.on('message', (message) => {
-
+    console.log(`Received message from WebSocket client: ${message.length} bytes`);
     // If message is a Buffer (binary data), convert it to a string
     if (Buffer.isBuffer(message)) {
       const messageAsString = message.toString();
-      console.log("Writing message: ", messageAsString);
-      mudClient.write(messageAsString);
+      mudClient.write(messageAsString, (error) => {
+        if (error) {
+          console.log('Error sending data to MUD server:', error);
+        }
+      });
     } else {
       // For text data, message is already a string
-      console.log("Writing message: ", message);
-      mudClient.write(message);
+      mudClient.write(message, (error) => {
+        if (error) {
+          console.log('Error sending data to MUD server:', error);
+        }
+      });
     }
   });
-  
-  ws.on('error', console.error);
 
-  ws.on('close', () => {
+  ws.on('close', (code, reason) => {
+    console.log(`WebSocket client disconnected. Code: ${code}, Reason: ${reason}`);
     mudClient.end();
-    console.log('Disconnected from MUD server');
+  });
+
+  ws.on('error', (error) => {
+    console.log('WebSocket error:', error);
+  });
+
+  mudClient.on('close', (hadError) => {
+    console.log('MUD server connection closed.', hadError ? 'Had error.' : 'No error.');
+    ws.close();
   });
 });
