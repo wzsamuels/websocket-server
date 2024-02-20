@@ -1,39 +1,56 @@
+require('dotenv').config(); // Using dotenv for environment variables
 const WebSocket = require('ws');
 const net = require('net');
 const https = require('https');
 const fs = require('fs');
+const winston = require('winston'); // Winston for logging
 
+// Load environment variables or use defaults
 const PORT = process.env.PORT || 8080;
+const MUD_SERVER_ADDRESS = process.env.MUD_SERVER_ADDRESS || 'ifmud.port4000.com';
+const MUD_SERVER_PORT = process.env.MUD_SERVER_PORT || 4000;
+const SSL_KEY_PATH = process.env.SSL_KEY_PATH || '/path/to/your/privkey.pem';
+const SSL_CERT_PATH = process.env.SSL_CERT_PATH || '/path/to/your/fullchain.pem';
+const PING_INTERVAL = parseInt(process.env.PING_INTERVAL) || 30000;
+
+// Setup logger
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.json(),
+  transports: [
+    new winston.transports.Console({ format: winston.format.simple() }),
+    new winston.transports.File({ filename: 'server.log' })
+  ],
+});
 
 // Load SSL/TLS certificates
 const serverOptions = {
-  key: fs.readFileSync('/home/ubuntu/websocket-server/privkey.pem'),
-  cert: fs.readFileSync('/home/ubuntu/websocket-server/fullchain.pem')
+  key: fs.readFileSync(SSL_KEY_PATH),
+  cert: fs.readFileSync(SSL_CERT_PATH)
 };
 
 // Create an HTTPS server
 const httpsServer = https.createServer(serverOptions);
-httpsServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+httpsServer.listen(PORT, () => logger.info(`Server running on port ${PORT}`));
 
-// Pass the HTTPS server to the WebSocket.Server constructor
+// WebSocket server setup
 const wss = new WebSocket.Server({ server: httpsServer });
 
-// Function to send a ping to each client
 function heartbeat() {
   this.isAlive = true;
 }
 
-wss.on('connection', (ws, req) => {
-  ws.isAlive = true;
-  ws.on('pong', heartbeat);
-  const ip = req.socket.remoteAddress;
-  console.log('New client connected to WebSocket Server: ', ip);
+function connectToMudServer(ws) {
   const mudClient = new net.Socket();
   mudClient.connect(4000, 'ifmud.port4000.com', () => {
-    console.log('Connected to MUD server from ', ip);
+    console.log('Connected to MUD server');
+    mudClient.setKeepAlive(true);
   });
 
-  mudClient.setKeepAlive(true);
+  mudClient.on('error', (error) => {
+    console.log('Error with MUD server connection:', error);
+    // Optionally, implement reconnection logic here
+  });
 
   mudClient.on('data', (data) => {
     console.log(`Received data from MUD server: ${data.length} bytes`);
@@ -43,10 +60,26 @@ wss.on('connection', (ws, req) => {
       }
     });
   });
-
-  mudClient.on('error', (error) => {
-    console.log('Error with MUD server connection:', error);
+  
+  mudClient.on('close', (hadError) => {
+    console.log('MUD server connection closed.', hadError ? 'Had error.' : 'No error.');
+    console.log('MUD server connection closed. Attempting to reconnect...');
+    // Wait for a few seconds before attempting to reconnect
+    setTimeout(() => connectToMudServer(ws), 5000);
   });
+
+  // Additional logic for handling data, etc.
+}
+
+wss.on('connection', (ws, req) => {
+  ws.isAlive = true;
+  ws.on('pong', heartbeat);
+  const ip = req.socket.remoteAddress;
+  logger.info('New client connected to WebSocket Server: ', ip);
+  
+  const mudClient = connectToMudServer(ws);
+
+
 
   ws.on('message', (message) => {
     console.log(`Received message from WebSocket client: ${message.length} bytes`);
@@ -75,11 +108,6 @@ wss.on('connection', (ws, req) => {
 
   ws.on('error', (error) => {
     console.log('WebSocket error:', error);
-  });
-
-  mudClient.on('close', (hadError) => {
-    console.log('MUD server connection closed.', hadError ? 'Had error.' : 'No error.');
-    ws.close();
   });
 });
 
