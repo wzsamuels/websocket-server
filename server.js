@@ -1,8 +1,8 @@
 require('dotenv').config();
-import { Server } from 'ws';
-import { Socket } from 'net';
-import { createServer } from 'https';
-import { readFileSync } from 'fs';
+const WebSocket = require('ws');
+const net = require('net');
+const https = require('https');
+const fs = require('fs');
 
 const PORT = process.env.PORT || 8080;
 const MUD_SERVER_ADDRESS = process.env.MUD_SERVER_ADDRESS;
@@ -13,16 +13,16 @@ const PING_INTERVAL = parseInt(process.env.PING_INTERVAL) || 30000;
 
 // Load SSL/TLS certificates
 const serverOptions = {
-  key: readFileSync(SSL_KEY_PATH),
-  cert: readFileSync(SSL_CERT_PATH)
+  key: fs.readFileSync(SSL_KEY_PATH),
+  cert: fs.readFileSync(SSL_CERT_PATH)
 };
 
 // Create an HTTPS server
-const httpsServer = createServer(serverOptions);
+const httpsServer = https.createServer(serverOptions);
 httpsServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 // Pass the HTTPS server to the WebSocket.Server constructor
-const wss = new Server({ server: httpsServer });
+const wss = new WebSocket.Server({ server: httpsServer });
 
 // Function to send a ping to each client
 function heartbeat() {
@@ -34,7 +34,7 @@ wss.on('connection', (ws, req) => {
   ws.on('pong', heartbeat);
   const ip = req.socket.remoteAddress;
   console.log('New client connected to WebSocket Server: ', ip);
-  const mudClient = new Socket();
+  const mudClient = new net.Socket();
   mudClient.connect(MUD_SERVER_PORT, MUD_SERVER_ADDRESS, () => {
     console.log('Connected to MUD server from ', ip);
   });
