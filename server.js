@@ -1,22 +1,28 @@
-const WebSocket = require('ws');
-const net = require('net');
-const https = require('https');
-const fs = require('fs');
+require('dotenv').config();
+import { Server } from 'ws';
+import { Socket } from 'net';
+import { createServer } from 'https';
+import { readFileSync } from 'fs';
 
 const PORT = process.env.PORT || 8080;
+const MUD_SERVER_ADDRESS = process.env.MUD_SERVER_ADDRESS;
+const MUD_SERVER_PORT = process.env.MUD_SERVER_PORT;
+const SSL_KEY_PATH = process.env.SSL_KEY_PATH;
+const SSL_CERT_PATH = process.env.SSL_CERT_PATH;
+const PING_INTERVAL = parseInt(process.env.PING_INTERVAL) || 30000;
 
 // Load SSL/TLS certificates
 const serverOptions = {
-  key: fs.readFileSync('/home/ubuntu/websocket-server/privkey.pem'),
-  cert: fs.readFileSync('/home/ubuntu/websocket-server/fullchain.pem')
+  key: readFileSync(SSL_KEY_PATH),
+  cert: readFileSync(SSL_CERT_PATH)
 };
 
 // Create an HTTPS server
-const httpsServer = https.createServer(serverOptions);
+const httpsServer = createServer(serverOptions);
 httpsServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 // Pass the HTTPS server to the WebSocket.Server constructor
-const wss = new WebSocket.Server({ server: httpsServer });
+const wss = new Server({ server: httpsServer });
 
 // Function to send a ping to each client
 function heartbeat() {
@@ -28,8 +34,8 @@ wss.on('connection', (ws, req) => {
   ws.on('pong', heartbeat);
   const ip = req.socket.remoteAddress;
   console.log('New client connected to WebSocket Server: ', ip);
-  const mudClient = new net.Socket();
-  mudClient.connect(4000, 'ifmud.port4000.com', () => {
+  const mudClient = new Socket();
+  mudClient.connect(MUD_SERVER_PORT, MUD_SERVER_ADDRESS, () => {
     console.log('Connected to MUD server from ', ip);
   });
 
@@ -91,7 +97,7 @@ const interval = setInterval(function ping() {
     ws.isAlive = false;
     ws.ping();
   });
-}, 30000); // Ping interval set to 30 seconds
+}, PING_INTERVAL); // Ping interval set to 30 seconds
 
 // Cleanup on server close
 wss.on('close', function close() {
