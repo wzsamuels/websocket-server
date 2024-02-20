@@ -68,7 +68,7 @@ function connectToMudServer(ws) {
     setTimeout(() => connectToMudServer(ws), 5000);
   });
 
-  // Additional logic for handling data, etc.
+  return mudClient;
 }
 
 wss.on('connection', (ws, req) => {
@@ -78,8 +78,6 @@ wss.on('connection', (ws, req) => {
   logger.info('New client connected to WebSocket Server: ', ip);
   
   const mudClient = connectToMudServer(ws);
-
-
 
   ws.on('message', (message) => {
     console.log(`Received message from WebSocket client: ${message.length} bytes`);
