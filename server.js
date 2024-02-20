@@ -18,7 +18,14 @@ httpsServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 // Pass the HTTPS server to the WebSocket.Server constructor
 const wss = new WebSocket.Server({ server: httpsServer });
 
+// Function to send a ping to each client
+function heartbeat() {
+  this.isAlive = true;
+}
+
 wss.on('connection', (ws, req) => {
+  ws.isAlive = true;
+  ws.on('pong', heartbeat);
   const ip = req.socket.remoteAddress;
   console.log('New client connected to WebSocket Server: ', ip);
   const mudClient = new net.Socket();
@@ -74,4 +81,19 @@ wss.on('connection', (ws, req) => {
     console.log('MUD server connection closed.', hadError ? 'Had error.' : 'No error.');
     ws.close();
   });
+});
+
+// Interval to check if clients are still alive
+const interval = setInterval(function ping() {
+  wss.clients.forEach(function each(ws) {
+    if (ws.isAlive === false) return ws.terminate();
+
+    ws.isAlive = false;
+    ws.ping();
+  });
+}, 30000); // Ping interval set to 30 seconds
+
+// Cleanup on server close
+wss.on('close', function close() {
+  clearInterval(interval);
 });
