@@ -4,6 +4,7 @@ const net = require('net');
 const https = require('https');
 const fs = require('fs');
 
+// Environmental variables
 const PORT = process.env.PORT || 8080;
 const MUD_SERVER_ADDRESS = process.env.MUD_SERVER_ADDRESS;
 const MUD_SERVER_PORT = process.env.MUD_SERVER_PORT;
@@ -34,14 +35,14 @@ wss.on('connection', (ws, req) => {
   ws.on('pong', heartbeat);
   const ip = req.socket.remoteAddress;
   console.log('New client connected to WebSocket Server: ', ip);
-  const mudClient = new net.Socket();
-  mudClient.connect(MUD_SERVER_PORT, MUD_SERVER_ADDRESS, () => {
+  const mudServer = new net.Socket();
+  mudServer.connect(MUD_SERVER_PORT, MUD_SERVER_ADDRESS, () => {
     console.log('Connected to MUD server from ', ip);
   });
 
-  mudClient.setKeepAlive(true);
+  mudServer.setKeepAlive(true);
 
-  mudClient.on('data', (data) => {
+  mudServer.on('data', (data) => {
     console.log(`Received data from MUD server: ${data.length} bytes`);
     ws.send(data.toString(), (error) => {
       if (error) {
@@ -50,8 +51,13 @@ wss.on('connection', (ws, req) => {
     });
   });
 
-  mudClient.on('error', (error) => {
+  mudServer.on('error', (error) => {
     console.log('Error with MUD server connection:', error);
+  });
+
+  mudServer.on('close', (hadError) => {
+    console.log('MUD server connection closed.', hadError ? 'Had error.' : 'No error.');
+    ws.close();
   });
 
   ws.on('message', (message) => {
@@ -59,14 +65,14 @@ wss.on('connection', (ws, req) => {
     // If message is a Buffer (binary data), convert it to a string
     if (Buffer.isBuffer(message)) {
       const messageAsString = message.toString();
-      mudClient.write(messageAsString, (error) => {
+      mudServer.write(messageAsString, (error) => {
         if (error) {
           console.log('Error sending data to MUD server:', error);
         }
       });
     } else {
       // For text data, message is already a string
-      mudClient.write(message, (error) => {
+      mudServer.write(message, (error) => {
         if (error) {
           console.log('Error sending data to MUD server:', error);
         }
@@ -76,16 +82,11 @@ wss.on('connection', (ws, req) => {
 
   ws.on('close', (code, reason) => {
     console.log(`WebSocket client disconnected. Code: ${code}, Reason: ${reason}`);
-    mudClient.end();
+    mudServer.end();
   });
 
   ws.on('error', (error) => {
     console.log('WebSocket error:', error);
-  });
-
-  mudClient.on('close', (hadError) => {
-    console.log('MUD server connection closed.', hadError ? 'Had error.' : 'No error.');
-    ws.close();
   });
 });
 
@@ -97,7 +98,7 @@ const interval = setInterval(function ping() {
     ws.isAlive = false;
     ws.ping();
   });
-}, PING_INTERVAL); // Ping interval set to 30 seconds
+}, PING_INTERVAL);
 
 // Cleanup on server close
 wss.on('close', function close() {

@@ -1,1 +1,1 @@
-# websocket-server
+A simple websocket server that acts as a proxy for frontend clients that can not directly establish a TCP connection.
